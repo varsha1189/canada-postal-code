@@ -87,7 +87,8 @@ if uploaded_file:
             action = st.radio("Select Action", ["Group Zip Codes", "Ungroup Zip Codes"])
 
             if action == "Group Zip Codes":
-                result_df = group_postal_codes(df)
+                grouped_result = group_postal_codes(df['postal_code'])
+                result_df = pd.DataFrame(grouped_result, columns=["Grouped_Zip_Code"])
                 st.success("✅ Zip codes grouped by FSA (first 3 characters).")
             else:
                 if 'postal_code' in df.columns and isinstance(df['postal_code'].iloc[0], list):
@@ -95,7 +96,8 @@ if uploaded_file:
                     result_df = ungroup_postal_codes(df)
                 elif 'postal_code' in df.columns and df['postal_code'].apply(lambda x: isinstance(x, str) and x.startswith('[')).any():
                     df['postal_code'] = df['postal_code'].apply(eval)  # Convert stringified list back to list
-                    result_df = ungroup_postal_codes(df)
+                    result = ungroup_postal_codes(df['postal_code'].tolist())
+                    result_df = pd.DataFrame(result, columns=["Postal_Code"])
                 else:
                     st.error("⚠️ The file doesn't look grouped. Upload a grouped file for ungrouping.")
                     st.stop()
