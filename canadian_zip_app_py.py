@@ -15,15 +15,56 @@ import io
 
 # ---------- Helper functions ----------
 
-def group_postal_codes(df):
-    df['FSA'] = df['postal_code'].str[:3]
-    grouped = df.groupby('FSA')['postal_code'].apply(list).reset_index()
-    grouped['count'] = grouped['postal_code'].apply(len)
-    return grouped
 
-def ungroup_postal_codes(df):
-    ungrouped = df.explode('postal_code').reset_index(drop=True)
-    return ungrouped
+def group_postal_codes(codes):
+    """
+    Group Canadian postal codes based on the first 3 fixed characters.
+    Group format: Group : H1A0A0..H1A0Z9
+    """
+    grouped = {}
+    for code in codes:
+        if len(code) != 6:
+            continue  # skip invalid codes
+        prefix = code[:3]  # e.g., H1A
+        suffix = code[3:]  # e.g., 0A0
+        if prefix not in grouped:
+            grouped[prefix] = []
+        grouped[prefix].append(suffix)
+
+    result = []
+    for prefix, suffixes in grouped.items():
+        sorted_suffixes = sorted(suffixes)
+        result.append(f"Group : {prefix}{sorted_suffixes[0]}..{prefix}{sorted_suffixes[-1]}")
+    return result
+
+
+def ungroup_postal_codes(grouped_ranges):
+    """
+    Expand grouped ranges like Group : H1A0A0..H1A0Z9 into individual postal codes.
+    Assumes suffix varies across A-Z and 0-9 for each position.
+    """
+    expanded = []
+    for entry in grouped_ranges:
+        if not entry.startswith("Group : "):
+            continue
+
+        range_part = entry.split("Group : ")[1].strip()
+        start_code, end_code = range_part.split("..")
+        prefix = start_code[:3]
+        start_suffix = start_code[3:]
+        end_suffix = end_code[3:]
+
+        # Brute-force generate all suffixes between start and end (alphanumeric order)
+        for a in string.digits:
+            for b in string.ascii_uppercase:
+                for c in string.digits:
+                    suffix = f"{a}{b}{c}"
+                    if start_suffix <= suffix <= end_suffix:
+                        expanded.append(f"{prefix}{suffix}")
+    return expanded
+
+
+
 
 def convert_df_to_csv(df):
     output = io.StringIO()
