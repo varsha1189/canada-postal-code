@@ -18,15 +18,15 @@ import io
 
 def group_postal_codes(codes):
     """
-    Group Canadian postal codes based on the first 3 fixed characters.
-    Group format: Group : H1A0A0..H1A0Z9
+    Group Canadian postal codes based on the first 3 characters.
+    Returns a list of dictionaries with 'start' and 'end' keys.
     """
     grouped = {}
     for code in codes:
         if len(code) != 6:
-            continue  # skip invalid codes
-        prefix = code[:3]  # e.g., H1A
-        suffix = code[3:]  # e.g., 0A0
+            continue
+        prefix = code[:3]
+        suffix = code[3:]
         if prefix not in grouped:
             grouped[prefix] = []
         grouped[prefix].append(suffix)
@@ -34,27 +34,27 @@ def group_postal_codes(codes):
     result = []
     for prefix, suffixes in grouped.items():
         sorted_suffixes = sorted(suffixes)
-        result.append(f"Group : {prefix}{sorted_suffixes[0]}..{prefix}{sorted_suffixes[-1]}")
+        start = f"{prefix}{sorted_suffixes[0]}"
+        end = f"{prefix}{sorted_suffixes[-1]}"
+        result.append({'start': start, 'end': end})
     return result
 
 
-def ungroup_postal_codes(grouped_ranges):
+def ungroup_postal_codes(start_end_df):
     """
-    Expand grouped ranges like Group : H1A0A0..H1A0Z9 into individual postal codes.
-    Assumes suffix varies across A-Z and 0-9 for each position.
+    Expand grouped postal code ranges into individual postal codes.
+    Input: DataFrame with 'start' and 'end' columns
+    Output: List of individual postal codes
     """
     expanded = []
-    for entry in grouped_ranges:
-        if not entry.startswith("Group : "):
-            continue
-
-        range_part = entry.split("Group : ")[1].strip()
-        start_code, end_code = range_part.split("..")
+    for _, row in start_end_df.iterrows():
+        start_code = row['start']
+        end_code = row['end']
         prefix = start_code[:3]
         start_suffix = start_code[3:]
         end_suffix = end_code[3:]
 
-        # Brute-force generate all suffixes between start and end (alphanumeric order)
+        # Expand all combinations of 0-9 A-Z 0-9
         for a in string.digits:
             for b in string.ascii_uppercase:
                 for c in string.digits:
@@ -73,50 +73,42 @@ def convert_df_to_csv(df):
 
 # ---------- Streamlit UI ----------
 
-st.title("📍 Canadian Zip Code Group Range /Ungroup Range")
+st.title("📍 Canadian Zip Code Group Range / Ungroup Range")
 
-uploaded_file = st.file_uploader("Upload a CSV file with 'postal_code' column", type="csv")
-print(uploaded_file)
+uploaded_file = st.file_uploader("Upload a CSV file with either 'postal_code' or 'start' and 'end' columns", type="csv")
 
 if uploaded_file:
     try:
         df = pd.read_csv(uploaded_file)
-        if 'postal_code' not in df.columns:
-            st.error("❌ The uploaded file must contain a 'postal_code' column.")
-        else:
-            action = st.radio("Select Action", ["Group Zip Codes", "Ungroup Zip Codes"])
 
-            if action == "Group Zip Codes":
-                grouped_result = group_postal_codes(df['postal_code'])
-                result_df = pd.DataFrame(grouped_result, columns=["Grouped_Zip_Code"])
-                st.success("✅ Zip codes grouped by FSA (first 3 characters).")
-            else:
-                if 'postal_code' in df.columns and isinstance(df['postal_code'].iloc[0], list):
-                    # Already in ungrouped format
-                    result_df = ungroup_postal_codes(df)
-                elif 'postal_code' in df.columns and df['postal_code'].apply(lambda x: isinstance(x, str) and x.startswith('[')).any():
-                    df['postal_code'] = df['postal_code'].apply(eval)  # Convert stringified list back to list
-                    result = ungroup_postal_codes(df['postal_code'].tolist())
-                    result_df = pd.DataFrame(result, columns=["Postal_Code"])
-                else:
-                    st.error("⚠️ The file doesn't look grouped. Upload a grouped file for ungrouping.")
-                    st.stop()
+        action = st.radio("Select Action", ["Group Zip Codes", "Ungroup Zip Codes"])
 
+        if action == "Group Zip Codes":
+            if 'postal_code' not in df.columns:
+                st.error("❌ The uploaded file must contain a 'postal_code' column.")
+                st.stop()
+            grouped_result = group_postal_codes(df['postal_code'])
+            result_df = pd.DataFrame(grouped_result)  # columns: start, end
+            st.success("✅ Zip codes grouped by FSA (first 3 characters).")
+
+        else:  # Ungroup Zip Codes
+            if 'start' in df.columns and 'end' in df.columns:
+                result = ungroup_postal_codes(df[['start', 'end']])
+                result_df = pd.DataFrame(result, columns=["postal_code"])
                 st.success("✅ Zip codes ungrouped into individual rows.")
+            else:
+                st.error("⚠️ The file must contain 'start' and 'end' columns for ungrouping.")
+                st.stop()
 
-            st.dataframe(result_df)
-  #Download link
-            csv = convert_df_to_csv(result_df)
-            st.download_button(
-                label="📥 Download Result CSV",
-                data=csv,
-                file_name="processed_postal_codes.csv",
-                mime="text/csv"
-            )
+        st.dataframe(result_df)
+
+        csv = convert_df_to_csv(result_df)
+        st.download_button(
+            label="📥 Download Result CSV",
+            data=csv,
+            file_name="processed_postal_codes.csv",
+            mime="text/csv"
+        )
+
     except Exception as e:
         st.error(f"Something went wrong: {e}")
-
-#
-
-
-
