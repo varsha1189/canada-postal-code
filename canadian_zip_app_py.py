@@ -73,7 +73,7 @@ def convert_df_to_csv(df):
 
 # ---------- Streamlit UI ----------
 
-st.title("📍 Canadian Zip Code Grouper/Ungrouper")
+st.title("📍 Canadian Zip Code Group Range /Ungroup Range")
 
 uploaded_file = st.file_uploader("Upload a CSV file with 'postal_code' column", type="csv")
 print(uploaded_file)
